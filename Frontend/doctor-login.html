@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Elaz - Doctor Access</title>
+
+    <link rel="stylesheet" href="doctor-login.css">
+</head>
+
+<body>
+
+    <div class="auth-container">
+
+        <div class="auth-card">
+
+            <h1>Elaz</h1>
+
+            <!-- LOGIN -->
+            <div id="loginSection">
+
+                <h2>Doctor Login</h2>
+
+                <p class="subtitle">
+                    Sign in to access the monitoring dashboard
+                </p>
+
+                <form id="loginForm">
+
+                    <label>Organization Code</label>
+
+                    <input
+                        type="text"
+                        id="loginOrganizationCode"
+                        placeholder="Enter organization code"
+                        required
+                    >
+
+                    <label>Email</label>
+
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        placeholder="doctor@example.com"
+                        required
+                    >
+
+                    <label>Password</label>
+
+                    <input
+                        type="password"
+                        id="loginPassword"
+                        placeholder="Enter password"
+                        required
+                    >
+
+                    <button type="submit">
+                        Login
+                    </button>
+
+                </form>
+
+                <p id="loginMessage"></p>
+
+                <div class="switch-text">
+                    Don't have a doctor account?
+
+                    <button
+                        type="button"
+                        class="switch-button"
+                        onclick="showRegister()">
+                        Register
+                    </button>
+                </div>
+
+            </div>
+
+
+            <!-- REGISTER -->
+            <div id="registerSection" style="display: none;">
+
+                <h2>Doctor Registration</h2>
+
+                <p class="subtitle">
+                    Create your doctor account
+                </p>
+
+                <form id="registerForm">
+
+                    <label>Organization Code</label>
+
+                    <input
+                        type="text"
+                        id="registerOrganizationCode"
+                        placeholder="Enter organization code"
+                        required
+                    >
+
+                    <label>Doctor Name</label>
+
+                    <input
+                        type="text"
+                        id="doctorName"
+                        placeholder="Enter your full name"
+                        required
+                    >
+
+                    <label>Email</label>
+
+                    <input
+                        type="email"
+                        id="registerEmail"
+                        placeholder="doctor@example.com"
+                        required
+                    >
+
+                    <label>Password</label>
+
+                    <input
+                        type="password"
+                        id="registerPassword"
+                        placeholder="Create a password"
+                        required
+                    >
+
+                    <button type="submit">
+                        Register
+                    </button>
+
+                </form>
+
+                <p id="registerMessage"></p>
+
+                <div class="switch-text">
+
+                    Already have an account?
+
+                    <button
+                        type="button"
+                        class="switch-button"
+                        onclick="showLogin()">
+                        Login
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="doctor-login.js"></script>
+
+</body>
+
+</html>

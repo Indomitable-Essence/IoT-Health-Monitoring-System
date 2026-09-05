@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="checkers" content="width=device-width", initial-scale=1.0">
+        <title>IoT Dashboard</title>
+        <link rel="stylesheet" href="stle.css">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <!-- NavBar-->
+         <nav class="Navigation-Bar">
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src = "checkers.jpg" alt="Logo">
+                </div>
+               <div> Checkers </div>
+            <small id="organizationName">Elaz💎</small>
+
+            </div>
+            <div class="navpads">
+                <div class="navpad active">Overview</div>
+                <div class="navpad ">Sensors</div>
+                <div class="navpad ">Alerts</div>
+                <div class="navpad ">Settings</div>
+            </div>
+            <div class="studio_logo">
+                <img src = "UI Design Studio.png" alt="Logo">
+                </div>  
+         </nav>
+         <main class="main">
+            <div class="left-col">
+                <div class="Welcoming">
+                    <div class="greeting">
+                        <!-- <div id="dateTime">
+                        <div id="currentDate"></div>
+                        <span>|</span>
+                        <span id="currentTime"></span>
+                        </div> -->
+                            <!-- Saturday, June 6 -->
+                        <h1>
+                            Good afternoon — your home is
+                            <span class="status">Comfortable 😪</span>
+                        </h1>
+                        <!-- <div class="sub">
+                            6 sensors · last update 2:55pm
+                            
+                        </div> -->
+                    </div>
+                </div>
+            <div class="metric-cards">
+                <div class="metric-card">
+                    <div class="card-header">
+                        <div class="card-label">
+                            <span class="icon">🌡</span>
+                            🥶Temperature
+                        </div>
+                    <div class="card-dot dot-green"></div>
+                    </div>
+                    <div class="metric-value" id ="tempValue"> 
+                        --°C
+                    </div>
+                    <div class="metric-delta">
+                       Loading...
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <div class="card-label">
+                            <!-- <span class="icon">🌡</span> -->
+                            💧 Humidity
+                        </div>
+                        <div class="card-dot dot-blue"></div>
+                    </div>
+                    <div class="metric-value" id="humValue">
+                       --%
+                    </div>
+                    <div class="metric-delta">
+                        Loading...
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <div class="card-label">
+                            <!-- <span class="icon">🌡</span> -->
+                            💨 Air Quality
+                        </div>
+                    <div class="card-dot dot-purple"></div>
+                    </div>
+                    <div class="metric-value" id="aqiValue">
+                        -- AQI
+                    </div>
+                    <div class="metric-delta">
+                        Loading...
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <div class="card-label">
+                            <!-- <span class="icon">🌡</span> -->
+                            🫀 Heart Rate
+                        </div>
+                        <div class="card-dot dot-yellow"></div>
+                    </div>
+                    <div class="metric-value" id="bpmValue">
+                        -- BPM
+                    </div>
+                    <div class="metric-delta">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+            <div class="charts-row">
+            <div class="chart-sect">
+    <div class="chart-title">
+        Environmental Trends
+    </div>
+
+    <canvas id="chart-trend"></canvas>
+    </div>
+    <div class="chart-sect">
+    <div class="chart-title">
+    Temperature Correlation
+    </div>
+    <canvas id="chart-trend2"></canvas>
+</div>
+</div>
+            <!-- <div class="ecgArena"> -->
+                <div class="patient-search-card">
+
+    <div class="patient-search-title">
+        🔍 Patient Lookup
+    </div>
+
+    <div class="patient-search-sub">
+        Enter Patient ID
+
+    <div class="patient-search">
+        <input
+            type="text"
+            id="patientId"
+            placeholder="e.g. PT-2026-001">
+
+        <button onclick="loadPatient(document.getElementById('patientId').value)">
+            Search
+        </button>
+    </div>
+    </div>  
+
+</div>
+<!-- </div>  -->
+                  <div id='ecg-data'> Waiting for ECG data...</div>
+                  <div class="ecg-row" >
+                  <button class="ecgButton" onclick="loadLive()">Live ECG</button>
+                  <button class="ecgButton" onclick="showHistory()">History</button>
+                  </div>
+                  <input type="date" id="dateSelected" style="display:none;">
+            
+                <canvas id="ecgGraph" width="800" height="391"></canvas>
+
+            </div>
+                <div class="right-col">
+                    <div class="side-card">
+
+    <h3>Patient Information</h3>
+
+    <div class="patient-row">
+        <span class="label">Patient ID</span>
+        <span id="displayPatientID">---</span>
+    </div>
+
+    <div class="patient-row">
+        <span class="label">Name</span>
+        <span id="displayPatientName">---</span>
+    </div>
+
+    <div class="patient-row">
+        <span class="label">Age</span>
+        <span id="displayPatientAge">---</span>
+    </div>
+
+    <div class="patient-row">
+        <span class="label">Gender</span>
+        <span id="displayPatientGender">---</span>
+    </div>
+
+    
+</div>
+<div class="side-card">
+
+    <h3>System Health</h3>
+
+    <div class="health-item">
+        <span>CPU Usage</span>
+        <span>32%</span>
+    </div>
+
+    <div class="health-item">
+        <span>Memory</span>
+        <span>68%</span>
+    </div>
+
+    <div class="health-item">
+        <span>Storage</span>
+        <span>45%</span>
+    </div>
+
+</div>
+<div id="ecgReference">
+                <img src="ecg graph.jpg" alt="ECG Reference">
+            </div>
+
+<div class="side-card">
+                          <h3 class="patient-stats">Patient Vitals</h3>
+                        <div class="status-row">
+                          
+                            <span class="status-name"> SPO₂ Level</span>
+                            <span class="status-value" id="spo2Value">--%</span>
+                        </div>
+                      
+                       <div class="status-row">
+                            <span class="status-name">Body Temperature</span>
+                            <span class="status-value" id="body_temp">--°C</span>
+    </div>
+
+    <div class="status-row">
+        <span>ESP32</span>
+        <span class="online">Online</span>
+    </div>
+
+    <div class="status-row">
+        <span>Last Update</span>
+        <span>2 sec ago</span>
+    </div>
+
+</div>
+
+
+                </div>
+
+           
+         </main>
+         <footer class="footer">
+            <div class="footer-content">
+                <span>© 2026 Elaz. All rights reserved.</span>
+                <span>Powered by UI Design Studio</span>
+                <span>Version 1.0.0</span>
+            </div>
+         <div class="modal" id="modal">
+            <div class="modal_content">
+                <h2>Welcome to Elaz!</h2>
+                <div class="New_patient">
+                <p id="New_patient"> Registering a new patient?</p>
+                <div id="New_arrival">
+                <span id="Name">Name:
+                <input type="text" id="nameInput" placeholder="Enter patient name">
+                </span>
+                <span id="Patient_id">Patient ID:
+                <input type="text" id="idInput" placeholder="Enter patient ID">
+                </span>
+                <span id="Gender">Sex:
+                <select id="genderInput">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select></span>
+                <span id="Age">Age:
+                <input type="number" id="ageInput" placeholder="Enter patient age" min="0" max="120" step="1" required>
+                </span>
+                <span id="height" >Height:
+                <input type="number" id="heightInput" placeholder="Enter patient height in Inches">
+                </span>
+                <span id="weight" >Weight:  
+                <input type="number" id="weightInput" placeholder="Enter patient weight in kg">
+                </span>
+                <span id="bloodPressure" >Blood Pressure:
+                <input type="text" id="bloodPressureInput" placeholder="Enter blood pressure">
+                </span>
+                </div>
+                <button id="submitButton" onclick="submitButton()">Submit</button>
+                </div>
+                <div class="old_customer">
+                <p id="old_customer">Already have a patient ID?</p>
+                <div id="old_arrival">
+                <span id="Patientid">Patient ID:
+                <input type="text" id="establishedIdInput" placeholder="Enter existing patient ID">
+                </span>
+                </div>
+                <button id="startMonitoringButton" ">Start Monitoring</button>
+                </div>
+                </div>
+            </div>
+            <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+         <script src="script.js"></script>
+         <!-- <script>
+            fetch('http://localhost:3000/ecg')
+    .then(res => res.json())
+    .then(data => {
+
+        console.log(data);
+
+        data.reverse().forEach(row => {
+            ecgData.push(row.ecg_value);
+            ecgLabels.push('');
+        });
+
+        ecgGraph.update();
+    });
+         </script> -->
+    </body>
+</html>
