@@ -63,7 +63,7 @@ const latestData = {
 console.log("4");
 
 const client = mqtt.connect(
-    'ws://broker.hivemq.com:8000/mqtt'
+    'ws://broker.hivemq.com:8884/mqtt'
 );
 console.log("5");
 
@@ -99,9 +99,9 @@ client.on('message', (topic, message) => {
 
             const newPoints = getCorrelationPoints();
 
-            temperatureCorrelation.data.datasets[0].data =newPoints;
-            temperatureCorrelation.data.datasets[1].data = calculateRegression(newPoints);
-            temperatureCorrelation.update();
+            // temperatureCorrelation.data.datasets[0].data =newPoints;
+            // temperatureCorrelation.data.datasets[1].data = calculateRegression(newPoints);
+            // temperatureCorrelation.update();
          break;
     };
     // console.log("Latest Data:", latestData);
@@ -134,8 +134,15 @@ setInterval(() => {
 
     db.query(
         `INSERT INTO ecg_data
-        (patient_id, ecg_value, SPO2, body_temp, env_temp, env_hum, BPM, aqi)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (patient_id, ecg_value, spo2, body_temp, env_temp, env_hum, bpm, aqi)
+        VALUES ($1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8)`,
         [
             latestData.patient_id,
             JSON.stringify(latestData.ecg_value),

@@ -5,19 +5,21 @@ const session = require('express-session');
 
 const db = require('./db');
 
+const supabase = require('./supabase');
 
 console.log("Loading mqtt.js...");
 const mqttHandler = require('./mqtt');
 console.log("mqtt.js loaded.");
+
 const app = express();
 
 
 app.use(cors({
-    origin:[
+    origin: [
         "http://127.0.0.1:5500",
         "http://localhost:5500"
     ],
-    credentials:true
+    credentials: true
 }));
 
 app.use(express.json());
@@ -26,20 +28,26 @@ app.use(session({
     secret: 'my-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false,  // Set to true if using HTTPS
+    cookie: {
+        secure: false,  // Set to true if using HTTPS
         httpOnly: true,
         maxAge: 1000 * 60 * 60 * 80,
-        sameSite: 'lax' }
-        }
-));
+        sameSite: 'lax'
+    }
+}));
+
 
 // Log every incoming request
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
-  next();
+    console.log(`${req.method} ${req.url}`);
+    next();
 });
 
-app.post("/admin-login", (req, res) => {
+// =====================================================
+// ADMIN LOGIN
+// =====================================================
+
+app.post("/admin-login", async (req, res) => {
 
     const {
         email,
@@ -52,83 +60,190 @@ app.post("/admin-login", (req, res) => {
         });
     }
 
-    const sql = `
-        SELECT
-            id,
-            admin_name,
-            email,
-            password_hash
-        FROM admins
-        WHERE email = ?
-    `;
+    try {
 
-    db.query(
-        sql,
-        [email],
-        async (err, results) => {
+        // Authenticate using Supabase Auth
+        const {
+            data,
+            error
+        } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error || !data.user) {
+
+            return res.status(401).json({
+                error: "Invalid login details"
+            });
+        }
+
+        const user = data.user;
+
+        // Check that this Auth user is actually an admin
+        const adminResult = await db.query(
+            `
+            SELECT
+                id,
+                admin_name,
+                email,
+                user_id
+            FROM admins
+            WHERE user_id = $1
+            `,
+            [user.id]
+        );
+
+        if (adminResult.rows.length === 0) {
+
+            // Sign the user out of the Supabase session
+            await supabase.auth.signOut();
+
+            return res.status(403).json({
+                error: "User is not registered as an admin"
+            });
+        }
+
+        const admin = adminResult.rows[0];
+
+        req.session.admin = {
+            admin_id: admin.id,
+            admin_name: admin.admin_name,
+            email: admin.email,
+            user_id: admin.user_id
+        };
+
+        console.log(
+            "Admin logged in:",
+            req.session.admin
+        );
+
+        req.session.save((err) => {
 
             if (err) {
-                console.error("Admin login error:", err);
 
-                return res.status(500).json({
-                    error: "Database error"
-                });
-            }
-
-            if (results.length === 0) {
-                return res.status(401).json({
-                    error: "Invalid login details"
-                });
-            }
-
-            const admin = results[0];
-
-            const passwordCorrect =
-                await bcrypt.compare(
-                    password,
-                    admin.password_hash
+                console.error(
+                    "SESSION SAVE ERROR:",
+                    err
                 );
 
-            if (!passwordCorrect) {
-                return res.status(401).json({
-                    error: "Invalid login details"
+                return res.status(500).json({
+                    error: "Could not save login session"
                 });
             }
-
-            req.session.admin = {
-                admin_id: admin.id,
-                admin_name: admin.admin_name,
-                email: admin.email
-            };
-
-            console.log(
-                "Admin logged in:",
-                req.session.admin
-            );
 
             res.json({
                 message: "Admin login successful",
+
                 admin: {
-                    admin_name: admin.admin_name,
-                    email: admin.email
+                    admin_name:
+                        admin.admin_name,
+
+                    email:
+                        admin.email
                 }
             });
+        });
 
-        }
-    );
+    } catch (error) {
 
-});
+        console.error(
+            "Admin login error:",
+            error
+        );
 
-function requireAdminLogin(req, res, next) {
-
-    if (!req.session.admin) {
-        return res.status(401).json({
-            error: "Admin login required"
+        res.status(500).json({
+            error: "Authentication failed"
         });
     }
+});
 
-    next();
+
+// =====================================================
+// ADMIN AUTHENTICATION MIDDLEWARE
+// =====================================================
+
+async function requireAdminAuth(req, res, next) {
+
+    try {
+
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader) {
+            return res.status(401).json({
+                error: "Authorization token required"
+            });
+        }
+
+        const token = authHeader.split(" ")[1];
+
+        if (!token) {
+            return res.status(401).json({
+                error: "Invalid authorization header"
+            });
+        }
+
+        // Verify the token with Supabase
+        const {
+            data: {
+                user
+            },
+            error
+        } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+
+            return res.status(401).json({
+                error: "Invalid or expired token"
+            });
+        }
+
+        console.log("Supabase admin user:", user.id);
+
+        // Check that this Supabase user exists
+        // in the admins table
+        const adminResult = await db.query(
+            `
+            SELECT
+                id,
+                admin_name,
+                email,
+                user_id
+            FROM admins
+            WHERE user_id = $1
+            `,
+            [user.id]
+        );
+
+        if (adminResult.rows.length === 0) {
+
+            return res.status(403).json({
+                error: "User is not registered as an admin"
+            });
+        }
+
+        // Store admin information in request
+        req.admin = adminResult.rows[0];
+
+        next();
+
+    } catch (error) {
+
+        console.error(
+            "Admin authentication error:",
+            error
+        );
+
+        return res.status(500).json({
+            error: "Authentication failed"
+        });
+    }
 }
+
+
+// =====================================================
+// ORGANIZATION CODE GENERATOR
+// =====================================================
 
 function generateOrganizationCode(organizationName) {
 
@@ -190,10 +305,16 @@ function generateOrganizationCode(organizationName) {
 
     return `${prefix}-${randomPart}`;
 }
+
+
+// =====================================================
+// CREATE ORGANIZATION
+// =====================================================
+
 app.post(
     "/admin/organizations",
-    requireAdminLogin,
-    (req, res) => {
+    requireAdminAuth,
+    async (req, res) => {
 
         const {
             organization_name
@@ -207,76 +328,79 @@ app.post(
 
         }
 
-        const organizationCode =
-            generateOrganizationCode(
-                organization_name
-            );
+        try {
 
-        const insertSql = `
-            INSERT INTO organizations
-            (
-                organization_code,
-                organization_name
-            )
-            VALUES (?, ?)
-        `;
-
-        db.query(
-            insertSql,
-            [
-                organizationCode,
-                organization_name.trim()
-            ],
-            (err, result) => {
-
-                if (err) {
-
-                    console.error(
-                        "Organization creation error:",
-                        err
-                    );
-
-                    return res.status(500).json({
-                        error: err.sqlMessage
-                    });
-
-                }
-
-                console.log(
-                    "Organization created:",
+            const organizationCode =
+                generateOrganizationCode(
                     organization_name
                 );
 
-                console.log(
-                    "Organization code:",
-                    organizationCode
-                );
+            const insertSql = `
+                INSERT INTO organizations
+                (
+                    organization_code,
+                    organization_name
+                )
+                VALUES ($1, $2)
+                RETURNING id, organization_code, organization_name
+            `;
 
-                res.status(201).json({
+            const result = await db.query(
+                insertSql,
+                [
+                    organizationCode,
+                    organization_name.trim()
+                ]
+            );
 
-                    message:
-                        "Organization created successfully",
+            const organization = result.rows[0];
 
-                    organization: {
+            console.log(
+                "Organization created:",
+                organization.organization_name
+            );
 
-                        id:
-                            result.insertId,
+            console.log(
+                "Organization code:",
+                organization.organization_code
+            );
 
-                        organization_name:
-                            organization_name.trim(),
+            res.status(201).json({
+                message: "Organization created successfully",
+                organization: {
+                    id: organization.id,
+                    organization_name:
+                        organization.organization_name,
+                    organization_code:
+                        organization.organization_code
+                }
+            });
 
-                        organization_code:
-                            organizationCode
+        } catch (error) {
 
-                    }
+            console.error(
+                "Organization creation error:",
+                error
+            );
 
+            // PostgreSQL unique constraint
+            if (error.code === "23505") {
+                return res.status(409).json({
+                    error: "Organization code already exists"
                 });
-
             }
-        );
 
+            res.status(500).json({
+                error: "Could not create organization"
+            });
+        }
     }
 );
+
+
+// =====================================================
+// DOCTOR REGISTRATION
+// =====================================================
 
 app.post("/doctor-register", async (req, res) => {
 
@@ -297,119 +421,131 @@ app.post("/doctor-register", async (req, res) => {
             error: "All fields are required"
         });
     }
+
     try {
+
+        // ---------------------------------------------
         // Find organization
+        // ---------------------------------------------
+
         const organizationSql = `
-            SELECT id, organization_name, organization_code
+            SELECT
+                id,
+                organization_name,
+                organization_code
             FROM organizations
-            WHERE organization_code = ?
+            WHERE organization_code = $1
         `;
-        db.query(
+
+        const organizationResult = await db.query(
             organizationSql,
-            [organization_code],
-            async (err, organizations) => {
-
-                if (err) {
-                    console.error(err);
-
-                    return res.status(500).json({
-                        error: "Database error"
-                    });
-                }
-
-                if (organizations.length === 0) {
-                    return res.status(404).json({
-                        error: "Organization not found"
-                    });
-                }
-                const organization = organizations[0];
-                // Check whether doctor already exists
-                const checkDoctorSql = `
-                    SELECT id
-                    FROM doctors
-                    WHERE organization_code = ?
-                    AND email = ?
-                `;
-                db.query(
-                    checkDoctorSql,
-                    [organization_code, email],
-                    async (err, doctors) => {
-
-                        if (err) {
-                            console.error(err);
-
-                            return res.status(500).json({
-                                error: "Database error"
-                            });
-                        }
-
-                        if (doctors.length > 0) {
-                            return res.status(409).json({
-                                error: "Doctor already registered"
-                            });
-                        }
-
-
-                        // Hash password
-                        const passwordHash =
-                            await bcrypt.hash(password, 10);
-
-
-                        const insertSql = `
-                            INSERT INTO doctors
-                            (
-                                organization_code,
-                                doctor_name,
-                                email,
-                                password_hash
-                            )
-                            VALUES (?, ?, ?, ?)
-                        `;
-
-                        db.query(
-                            insertSql,
-                            [
-                                organization.organization_code,
-                                doctor_name,
-                                email,
-                                passwordHash
-                            ],
-                            (err, result) => {
-
-                                if (err) {
-                                    console.error(err);
-
-                                    return res.status(500).json({
-                                        error: "Could not register doctor"
-                                    });
-                                }
-
-                                res.status(201).json({
-                                    message: "Doctor registered successfully",
-                                    doctor_id: result.insertId
-                                });
-
-                            }
-                        );
-
-                    }
-                );
-
-            }
+            [organization_code]
         );
+
+        if (organizationResult.rows.length === 0) {
+            return res.status(404).json({
+                error: "Organization not found"
+            });
+        }
+
+        const organization =
+            organizationResult.rows[0];
+
+
+        // ---------------------------------------------
+        // Check existing doctor
+        // ---------------------------------------------
+
+        const checkDoctorSql = `
+            SELECT id
+            FROM doctors
+            WHERE organization_code = $1
+            AND email = $2
+        `;
+
+        const doctorResult = await db.query(
+            checkDoctorSql,
+            [
+                organization_code,
+                email
+            ]
+        );
+
+        if (doctorResult.rows.length > 0) {
+            return res.status(409).json({
+                error: "Doctor already registered"
+            });
+        }
+
+
+        // ---------------------------------------------
+        // Hash password
+        // ---------------------------------------------
+
+        const passwordHash =
+            await bcrypt.hash(password, 10);
+
+
+        // ---------------------------------------------
+        // Create doctor
+        // ---------------------------------------------
+
+        const insertSql = `
+            INSERT INTO doctors
+            (
+                organization_code,
+                doctor_name,
+                email,
+                password_hash
+            )
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+        `;
+
+        const insertResult = await db.query(
+            insertSql,
+            [
+                organization.organization_code,
+                doctor_name,
+                email,
+                passwordHash
+            ]
+        );
+
+        const doctorId =
+            insertResult.rows[0].id;
+
+
+        res.status(201).json({
+            message: "Doctor registered successfully",
+            doctor_id: doctorId
+        });
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Doctor registration error:",
+            error
+        );
+
+        if (error.code === "23505") {
+            return res.status(409).json({
+                error: "Doctor already registered"
+            });
+        }
 
         res.status(500).json({
             error: "Registration failed"
         });
-
     }
-
 });
-app.post("/doctor-login", (req, res) => {
+
+
+// =====================================================
+// DOCTOR LOGIN
+// =====================================================
+
+app.post("/doctor-login", async (req, res) => {
 
     const {
         organization_code,
@@ -417,135 +553,161 @@ app.post("/doctor-login", (req, res) => {
         password
     } = req.body;
 
-    if (!organization_code || !email || !password) {
-
+    if (
+        !organization_code ||
+        !email ||
+        !password
+    ) {
         return res.status(400).json({
-            error: "Organization, email and password are required"
+            error:
+                "Organization, email and password are required"
         });
-
     }
 
+    try {
 
-    const sql = `
-        SELECT
-            doctors.id AS doctor_id,
-            doctors.doctor_name,
-            doctors.email,
-            doctors.password_hash,
+        const sql = `
+            SELECT
+                doctors.id AS doctor_id,
+                doctors.doctor_name,
+                doctors.email,
+                doctors.password_hash,
 
-            organizations.id AS organization_id,
-            organizations.organization_name,
-            organizations.organization_code
+                organizations.id AS organization_id,
+                organizations.organization_name,
+                organizations.organization_code
 
-        FROM doctors
+            FROM doctors
 
-        JOIN organizations
-        ON doctors.organization_code = organizations.organization_code
+            JOIN organizations
+                ON doctors.organization_code =
+                   organizations.organization_code
 
-        WHERE organizations.organization_code = ?
-        AND doctors.email = ?
-    `;
+            WHERE organizations.organization_code = $1
+            AND doctors.email = $2
+        `;
+
+        const result = await db.query(
+            sql,
+            [
+                organization_code,
+                email
+            ]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({
+                error: "Invalid login details"
+            });
+        }
+
+        const doctor = result.rows[0];
 
 
-    db.query(
-        sql,
-        [organization_code, email],
-        async (err, results) => {
+        // ---------------------------------------------
+        // Check password
+        // ---------------------------------------------
+
+        const passwordCorrect =
+            await bcrypt.compare(
+                password,
+                doctor.password_hash
+            );
+
+        if (!passwordCorrect) {
+            return res.status(401).json({
+                error: "Invalid login details"
+            });
+        }
+
+
+        // ---------------------------------------------
+        // Save doctor session
+        // ---------------------------------------------
+
+        req.session.doctor = {
+
+            doctor_id:
+                doctor.doctor_id,
+
+            doctor_name:
+                doctor.doctor_name,
+
+            organization_id:
+                doctor.organization_id,
+
+            organization_name:
+                doctor.organization_name,
+
+            organization_code:
+                doctor.organization_code
+        };
+
+
+        console.log(
+            "Doctor logged in:",
+            req.session.doctor
+        );
+
+
+        // ---------------------------------------------
+        // Explicitly save session
+        // ---------------------------------------------
+
+        req.session.save((err) => {
 
             if (err) {
 
-                console.error(err);
-
-                return res.status(500).json({
-                    error: "Database error"
-                });
-
-            }
-
-
-            if (results.length === 0) {
-
-                return res.status(401).json({
-                    error: "Invalid login details"
-                });
-
-            }
-
-
-            const doctor = results[0];
-
-
-            const passwordCorrect =
-                await bcrypt.compare(
-                    password,
-                    doctor.password_hash
+                console.error(
+                    "SESSION SAVE ERROR:",
+                    err
                 );
 
-
-            if (!passwordCorrect) {
-
-                return res.status(401).json({
-                    error: "Invalid login details"
+                return res.status(500).json({
+                    error:
+                        "Could not save login session"
                 });
-
             }
 
-
-            // Save authenticated doctor
-            // inside the session
-
-            req.session.doctor = {
-
-                doctor_id: doctor.doctor_id,
-
-                doctor_name:
-                    doctor.doctor_name,
-
-                organization_id:
-                    doctor.organization_id,
-
-                organization_name:
-                    doctor.organization_name,
-
-                organization_code:
-                    doctor.organization_code
-
-            };
-
-
             console.log(
-                "Doctor logged in:",
-                req.session.doctor
+                "Doctor session saved successfully"
             );
-req.session.save((err) => {
-
-    if (err) {
-        console.error("SESSION SAVE ERROR:", err);
-
-        return res.status(500).json({
-            error: "Could not save login session"
-        });
-    }
-
-    console.log("Doctor session saved successfully");  
 
             res.json({
 
-                message:
-                    "Login successful",
+                message: "Login successful",
 
                 doctor: {
-    doctor_name: doctor.doctor_name,
-    organization_name:doctor.organization_name,
-    organization_code: doctor.organization_code
+                    doctor_name:
+                        doctor.doctor_name,
+
+                    organization_name:
+                        doctor.organization_name,
+
+                    organization_code:
+                        doctor.organization_code
                 }
-
             });
-
-        }
-    );
         });
+
+    } catch (error) {
+
+        console.error(
+            "Doctor login error:",
+            error
+        );
+
+        res.status(500).json({
+            error: "Database error"
+        });
+    }
 });
+
+
+// =====================================================
+// DOCTOR AUTHENTICATION MIDDLEWARE
+// =====================================================
+
 function requireDoctorLogin(req, res, next) {
 
     console.log("========== requireDoctorLogin ==========");
@@ -563,296 +725,223 @@ function requireDoctorLogin(req, res, next) {
     }
 
     console.log("✅ DOCTOR SESSION FOUND");
-    console.log("Organization:", req.session.doctor.organization_code);
+    console.log(
+        "Organization:",
+        req.session.doctor.organization_code
+    );
+
     console.log("========================================");
 
     next();
 }
-// function requireDoctorLogin(req, res, next) {
 
-//     if (!req.session.doctor) {
-//         return res.status(401).json({
-//             error: "Doctor login required"
-//         });
-//     }
 
-//     next();
-// }
-// app.get("/patients", (req, res) => {
+// =====================================================
+// GET PATIENT
+// =====================================================
 
-//     const { patient_id } = req.query;
+app.get(
+    "/patients",
+    requireDoctorLogin,
+    async (req, res) => {
 
-//     if (!patient_id) {
-//         return res.status(400).json({
-//             error: "patient_id is required"
-//         });
-//     }
+        const { patient_id } = req.query;
 
-//     const sql = `
-//         SELECT *
-//         FROM patients
-//         WHERE patient_id = ?
-//     `;
+        if (!patient_id) {
+            return res.status(400).json({
+                error: "patient_id is required"
+            });
+        }
 
-//     db.query(sql, [patient_id], (err, results) => {
+        const organizationCode =
+            req.session.doctor.organization_code;
 
-//         if (err) {
-//             return res.status(500).json(err);
-//         }
+        const sql = `
+            SELECT *
+            FROM patients
+            WHERE patient_id = $1
+            AND organization_code = $2
+        `;
 
-//         if (results.length === 0) {
-//             return res.status(404).json({
-//                 message: "Patient not found"
-//             });
-//         }
+        try {
 
-//         res.json(results[0]);
+            const result = await db.query(
+                sql,
+                [
+                    patient_id,
+                    organizationCode
+                ]
+            );
 
-//     });
-
-// });
-app.get("/patients", requireDoctorLogin, (req, res) => {
-
-    const { patient_id } = req.query;
-
-    if (!patient_id) {
-        return res.status(400).json({
-            error: "patient_id is required"
-        });
-    }
-
-    const organizationCode =
-        req.session.doctor.organization_code;
-
-    const sql = `
-        SELECT *
-        FROM patients
-        WHERE patient_id = ?
-        AND organization_code = ?
-    `;
-
-    db.query(
-        sql,
-        [patient_id, organizationCode],
-        (err, results) => {
-
-            if (err) {
-                console.error("Patient lookup error:", err);
-
-                return res.status(500).json({
-                    error: "Database error"
-                });
-            }
-
-            if (results.length === 0) {
+            if (result.rows.length === 0) {
                 return res.status(404).json({
                     message: "Patient not found"
                 });
             }
 
-            res.json(results[0]);
+            res.json(result.rows[0]);
 
+        } catch (error) {
+
+            console.error(
+                "Patient lookup error:",
+                error
+            );
+
+            res.status(500).json({
+                error: "Database error"
+            });
         }
-    );
-
-});
-app.get('/ecg', (req, res) => {
-
-    db.query(
-        'SELECT * FROM ecg_data ORDER BY id DESC LIMIT 100',
-        (err, results) => {
-
-            if (err) {
-                res.status(500).send(err);
-                return;
-            }
-
-            res.json(results);
-        }
-    );
-
-});
-
-// app.get('/records', (req, res) => {
-
-//     const patient = req.query.patient;
-//     const date = req.query.date;
-
-//                 const sql = `SELECT * FROM ecg_data WHERE patient_id = ? AND DATE(created_at) = ? ORDER BY id ASC LIMIT 300`;
-
-//     db.query(sql, [patient, date], (err, results) => {
-
-//         if (err) {
-//             console.log(err);
-//             return res.status(500).send(err);
-//         }
-       
-
-//         console.log("HISTORY RESULTS:", results.length);
-
-//         res.json(results);
-//     });
-// });
-
-// app.post("/patients", (req, res) => {
+    }
+);
 
 
-// console.log("Loading patient routes...");
+// =====================================================
+// GET ECG
+// =====================================================
 
-//     console.log("POST /patients reached");
-//     console.log(req.body);
+app.get('/ecg', async (req, res) => {
 
-//     const {
-//         patient_id,
-//         patient_name,
-//         age,
-//         gender
-//     } = req.body;
-    
-//     const sql = `
-//         INSERT INTO patients
-//         (patient_id, patient_name, age, gender)
-//         VALUES (?, ?, ?, ?)
-//     `;
+    try {
 
-//     db.query(
-//         sql,
-//         [patient_id, patient_name, age, gender],
-//         (err) => {
+        const result = await db.query(
+            'SELECT * FROM ecg_data ORDER BY id DESC LIMIT 100'
+        );
 
-//             if(err){
-//                 return res.status(500).json(err);  
-//             }
+        res.json(result.rows);
 
-//             mqttHandler.setCurrentlyMonitoredPatient(patient_id);
-//             res.json({
-//                 message:"Patient Registered"
-//             });
+    } catch (error) {
 
-//         });
-//         console.log(db.state);
+        console.error(
+            "ECG query error:",
+            error
+        );
 
-
-// });
-app.get('/records', requireDoctorLogin, (req, res) => {
-
-    const patient = req.query.patient;
-    const date = req.query.date;
-
-    const organizationCode =
-        req.session.doctor.organization_code;
-
-    const sql = `
-        SELECT ecg_data.*
-        FROM ecg_data 
-        INNER JOIN patients 
-            ON ecg_data.patient_id = patients.patient_id
-        WHERE ecg_data.patient_id = ?
-        AND patients.organization_code = ?
-        AND DATE(ecg_data.created_at) = ?
-        ORDER BY ecg_data.id DESC
-        LIMIT 300
-    `;
-
-    db.query(
-        sql,
-        [patient, organizationCode, date],
-        (err, results) => {
-
-            if (err) {
-                console.error("History error:", err);
-
-                return res.status(500).json({
-                    error: "Database error"
-                });
-            }
-
-            console.log("HISTORY RESULTS:", results.length);
-
-            res.json(results);
-        }
-    );
-});
-app.post("/patients", requireDoctorLogin, (req, res) => {
-
-    console.log("=================================");
-    console.log("POST /patients REACHED");
-    console.log("Request body:", req.body);
-    console.log("Doctor session:", req.session.doctor);
-    console.log("=================================");
-
-    const {
-        patient_id,
-        patient_name,
-        age,
-        gender,
-        height,
-        weight,
-        blood_pressure
-    } = req.body;
-
-    if (!patient_id || !patient_name || !age || !gender || !height || !weight || !blood_pressure) {
-
-        console.log("ERROR: Missing patient fields");
-
-        return res.status(400).json({
-            error: "All patient fields are required"
+        res.status(500).json({
+            error: "Database error"
         });
     }
 
-    // Get organization from logged-in doctor
-    const organizationCode =
-        req.session.doctor.organization_code;
+});
 
-    console.log("Organization from doctor session:",
-        organizationCode
-    );
 
-    const sql = `
-        INSERT INTO patients
-        (
+// =====================================================
+// GET RECORDS BY DATE
+// =====================================================
+
+app.get(
+    '/records',
+    requireDoctorLogin,
+    async (req, res) => {
+
+        const patient = req.query.patient;
+        const date = req.query.date;
+
+        const organizationCode =
+            req.session.doctor.organization_code;
+
+        const sql = `
+            SELECT ecg_data.*
+            FROM ecg_data
+            INNER JOIN patients
+                ON ecg_data.patient_id =
+                   patients.patient_id
+            WHERE ecg_data.patient_id = $1
+            AND patients.organization_code = $2
+            AND DATE(ecg_data.created_at) = $3
+            ORDER BY ecg_data.id DESC
+            LIMIT 300
+        `;
+
+        try {
+
+            const result = await db.query(
+                sql,
+                [
+                    patient,
+                    organizationCode,
+                    date
+                ]
+            );
+
+            console.log(
+                "HISTORY RESULTS:",
+                result.rows.length
+            );
+
+            res.json(result.rows);
+
+        } catch (error) {
+
+            console.error(
+                "History error:",
+                error
+            );
+
+            res.status(500).json({
+                error: "Database error"
+            });
+        }
+    }
+);
+
+
+// =====================================================
+// REGISTER PATIENT
+// =====================================================
+
+app.post(
+    "/patients",
+    requireDoctorLogin,
+    async (req, res) => {
+
+        console.log("=================================");
+        console.log("POST /patients REACHED");
+        console.log("Request body:", req.body);
+        console.log("Doctor session:", req.session.doctor);
+        console.log("=================================");
+
+        const {
             patient_id,
             patient_name,
             age,
             gender,
             height,
             weight,
-            blood_pressure,
-            organization_code
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+            blood_pressure
+        } = req.body;
 
-    console.log("About to insert patient into database...");
+        if (
+            !patient_id ||
+            !patient_name ||
+            !age ||
+            !gender ||
+            !height ||
+            !weight ||
+            !blood_pressure
+        ) {
 
-    db.query(
-        sql,
-        [
-            patient_id,
-            patient_name,
-            age,
-            gender,
-            height,
-            weight,
-            blood_pressure,
+            console.log(
+                "ERROR: Missing patient fields"
+            );
+
+            return res.status(400).json({
+                error: "All patient fields are required"
+            });
+        }
+
+        // Get organization from logged-in doctor
+        const organizationCode =
+            req.session.doctor.organization_code;
+
+        console.log(
+            "Organization from doctor session:",
             organizationCode
-        ],
-        (err, result) => {
+        );
 
-            if (err) {
-
-                console.error(
-                    "PATIENT REGISTRATION ERROR:",
-                    err
-                );
-
-                return res.status(500).json({
-                    error: err.sqlMessage || "Database error"
-                });
-            }
-
-            console.log("PATIENT SAVED SUCCESSFULLY");
-            console.log("Inserted patient:", {
+        const sql = `
+            INSERT INTO patients
+            (
                 patient_id,
                 patient_name,
                 age,
@@ -860,200 +949,131 @@ app.post("/patients", requireDoctorLogin, (req, res) => {
                 height,
                 weight,
                 blood_pressure,
-                organization_code: organizationCode
+                organization_code
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING patient_id
+        `;
+
+        console.log(
+            "About to insert patient into database..."
+        );
+
+        try {
+
+            const result = await db.query(
+                sql,
+                [
+                    patient_id,
+                    patient_name,
+                    age,
+                    gender,
+                    height,
+                    weight,
+                    blood_pressure,
+                    organizationCode
+                ]
+            );
+
+            console.log(
+                "PATIENT SAVED SUCCESSFULLY"
+            );
+
+            res.status(201).json({
+
+                message:
+                    "Patient Registered",
+
+                patient_id:
+                    result.rows[0].patient_id,
+
+                organization_code:
+                    organizationCode
             });
 
-            res.json({
-                message: "Patient Registered",
-                patient_id: patient_id,
-                organization_code: organizationCode
-            });
+        } catch (error) {
 
-        }
-    );
+            console.error(
+                "PATIENT REGISTRATION ERROR:",
+                error
+            );
 
-});
-// app.post("/patients", requireDoctorLogin, (req, res) => {
+            if (error.code === "23505") {
 
-//     console.log("POST /patients reached");
-//     console.log(req.body);
-
-//     const {
-//         patient_id,
-//         patient_name,
-//         age,
-//         gender
-//     } = req.body;
-
-//     if (!patient_id || !patient_name || !age || !gender) {
-//         return res.status(400).json({
-//             error: "All patient fields are required"
-//         });
-//     }
-
-//     const organizationCode =
-//         req.session.doctor.organization_code;
-
-//     const sql = `
-//         INSERT INTO patients
-//         (
-//             patient_id,
-//             patient_name,
-//             age,
-//             gender,
-//             organization_code
-//         )
-//         VALUES (?, ?, ?, ?, ?)
-//     `;
-
-//     db.query(
-//         sql,
-//         [
-//             patient_id,
-//             patient_name,
-//             age,
-//             gender,
-//             organizationCode
-//         ],
-//         (err) => {
-
-//             if (err) {
-
-//                 console.error(
-//                     "Patient registration error:",
-//                     err
-//                 );
-
-//                 return res.status(500).json({
-//                     error: err.sqlMessage
-//                 });
-//             }
-
-//             mqttHandler.setCurrentlyMonitoredPatient(
-//                 patient_id
-//             );
-
-//             res.json({
-//                 message: "Patient Registered",
-//                 patient_id,
-//                 organization_code: organizationCode
-//             });
-
-//         }
-//     );
-
-// });
-// app.post("/set-patient",requireDoctorLogin, (req, res) => {
-//      console.log("POST /set-patient");
-//     console.log(req.body);
-//     const { patient_id } = req.body;
-//     // currentPatient = patient_id;
-//     if (!patient_id) {
-//         return res.status(400).json({ error: "patient_id is required" });
-//     }
-//     const organizationCode = req.session.doctor.organization_code;
-
-//     const sql = `
-//         SELECT *
-//         FROM patients
-//         WHERE patient_id = ?
-//         AND organization_code = ?
-//     `;
-//     db.query(
-//         sql,
-//         [patient_id,organizationCode],
-//         (err, results) => {
-
-//             if (err) {
-//                 console.error("Patient lookup error:", err);
-//                 return res.status(500).json({
-//                     error: err.sqlMessage
-//                 });
-//             }
-
-//             if (results.length === 0) {
-//                 return res.status(403).json({
-//                     error: "Patient does not belong to your organization"
-//                 });
-//             }
-
-//             mqttHandler.setCurrentlyMonitoredPatient(patient_id);
-//             res.json({ message: "Monitoring started", patient_id });
-//         }
-//     );
-// });
-// app.post("/set-patient", (req, res) => {
-//     console.log("POST /set-patient");
-//     console.log(req.body);
-
-//     const { patient_id } = req.body;
-
-//     if (!patient_id) {
-//         return res.status(400).json({
-//             error: "patient_id is required"
-//         });
-//     }
-
-//     mqttHandler.setCurrentlyMonitoredPatient(patient_id);
-
-//     res.json({
-//         message: "Monitoring started"
-//     });
-// });
-app.post("/set-patient", requireDoctorLogin, (req, res) => {
-
-    console.log("=================================");
-    console.log("POST /set-patient REACHED");
-    console.log("Request body:", req.body);
-    console.log("Doctor session:", req.session.doctor);
-    console.log("=================================");
-
-    const { patient_id } = req.body;
-
-    if (!patient_id) {
-        console.log("ERROR: No patient_id received");
-
-        return res.status(400).json({
-            error: "patient_id is required"
-        });
-    }
-
-    const organizationCode =
-        req.session.doctor.organization_code;
-
-    console.log("Patient ID:", patient_id);
-    console.log("Organization:", organizationCode);
-
-    const sql = `
-        SELECT *
-        FROM patients
-        WHERE patient_id = ?
-        AND organization_code = ?
-    `;
-
-    db.query(
-        sql,
-        [patient_id, organizationCode],
-        (err, results) => {
-
-            if (err) {
-
-                console.error(
-                    "PATIENT LOOKUP ERROR:",
-                    err
-                );
-
-                return res.status(500).json({
-                    error: err.sqlMessage
+                return res.status(409).json({
+                    error:
+                        "Patient ID already exists"
                 });
             }
 
+            res.status(500).json({
+                error:
+                    "Database error"
+            });
+        }
+    }
+);
+
+
+// =====================================================
+// SET CURRENT PATIENT
+// =====================================================
+
+app.post(
+    "/set-patient",
+    requireDoctorLogin,
+    async (req, res) => {
+
+        console.log("=================================");
+        console.log("POST /set-patient REACHED");
+        console.log("Request body:", req.body);
+        console.log("Doctor session:", req.session.doctor);
+        console.log("=================================");
+
+        const { patient_id } = req.body;
+
+        if (!patient_id) {
+
             console.log(
-                "Patient lookup results:",
-                results
+                "ERROR: No patient_id received"
             );
 
-            if (results.length === 0) {
+            return res.status(400).json({
+                error: "patient_id is required"
+            });
+        }
+
+        const organizationCode =
+            req.session.doctor.organization_code;
+
+        console.log(
+            "Patient ID:",
+            patient_id
+        );
+
+        console.log(
+            "Organization:",
+            organizationCode
+        );
+
+        const sql = `
+            SELECT *
+            FROM patients
+            WHERE patient_id = $1
+            AND organization_code = $2
+        `;
+
+        try {
+
+            const result = await db.query(
+                sql,
+                [
+                    patient_id,
+                    organizationCode
+                ]
+            );
+
+            if (result.rows.length === 0) {
 
                 console.log(
                     "ERROR: Patient does not belong to organization"
@@ -1067,7 +1087,7 @@ app.post("/set-patient", requireDoctorLogin, (req, res) => {
 
             console.log(
                 "PATIENT FOUND:",
-                results[0].patient_id
+                result.rows[0].patient_id
             );
 
             mqttHandler.setCurrentlyMonitoredPatient(
@@ -1075,106 +1095,165 @@ app.post("/set-patient", requireDoctorLogin, (req, res) => {
             );
 
             console.log(
-                "setCurrentlyMonitoredPatient() CALLED"
+                "Patient selected successfully:",
+                patient_id
             );
-console.log(
-    "setCurrentlyMonitoredPatient() CALLED"
-);
-
-console.log(
-    "Patient selected successfully:",
-    patient_id
-);
 
             res.json({
-                message: "Monitoring started",
-                patient_id: patient_id
+
+                message:
+                    "Monitoring started",
+
+                patient_id:
+                    patient_id
             });
 
+        } catch (error) {
+
+            console.error(
+                "PATIENT LOOKUP ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                error:
+                    "Database error"
+            });
         }
-    );
-});
+    }
+);
+
+
+// =====================================================
+// PATIENT RECORDS
+// =====================================================
+
+app.get(
+    "/patient-records",
+    requireDoctorLogin,
+    async (req, res) => {
+
+        const { patient_id } = req.query;
+
+        if (!patient_id) {
+
+            return res.status(400).json({
+                error: "patient_id is required"
+            });
+        }
+
+        const organizationCode =
+            req.session.doctor.organization_code;
+
+        const sql = `
+            SELECT
+                ecg_data.patient_id,
+                ecg_data.ecg_value,
+                ecg_data.spo2,
+                ecg_data.body_temp,
+                ecg_data.env_temp,
+                ecg_data.env_hum,
+                ecg_data.bpm,
+                ecg_data.aqi,
+                ecg_data.created_at
+            FROM ecg_data
+            INNER JOIN patients
+                ON ecg_data.patient_id =
+                   patients.patient_id
+            WHERE ecg_data.patient_id = $1
+            AND patients.organization_code = $2
+            ORDER BY ecg_data.created_at DESC
+            LIMIT 300
+        `;
+
+        try {
+
+            const result = await db.query(
+                sql,
+                [
+                    patient_id,
+                    organizationCode
+                ]
+            );
+
+            console.log(
+                `Found ${result.rows.length} records for ${patient_id}`
+            );
+
+            res.json(result.rows);
+
+        } catch (error) {
+
+            console.error(
+                "Patient records error:",
+                error
+            );
+
+            res.status(500).json({
+                error:
+                    "Database error"
+            });
+        }
+    }
+);
+
+
+// =====================================================
+// DOCTOR LOGOUT
+// =====================================================
+
+app.post(
+    "/doctor-logout",
+    requireDoctorLogin,
+    (req, res) => {
+
+        req.session.destroy((err) => {
+
+            if (err) {
+
+                console.error(
+                    "Logout error:",
+                    err
+                );
+
+                return res.status(500).json({
+                    error: "Logout failed"
+                });
+            }
+
+            res.json({
+                message:
+                    "Logged out successfully"
+            });
+
+        });
+
+    }
+);
+
+
+// =====================================================
+// CURRENT DOCTOR
+// =====================================================
+
+app.get(
+    "/doctor-me",
+    requireDoctorLogin,
+    (req, res) => {
+
+        res.json({
+            doctor:
+                req.session.doctor
+        });
+
+    }
+);
+
+
+// =====================================================
+// START SERVER
+// =====================================================
+
 app.listen(3000, () => {
     console.log('Server running on port 3000');
 });
-app.get("/patient-records",requireDoctorLogin, (req, res) => {
-
-    const { patient_id } = req.query;
-
-    if (!patient_id) {
-        return res.status(400).json({
-            error: "patient_id is required"
-        });
-    }
-    const organizationCode =
-    req.session.doctor.organization_code;
-
-    const sql = `
-        SELECT
-            patient_id,
-            ecg_value,
-            SPO2,
-            body_temp,
-            env_temp,
-            env_hum,
-            BPM,
-            aqi,
-            created_at
-        FROM ecg_data
-        INNER JOIN patients
-         ON ecg_data.patient_id = patients.patient_id
-        WHERE ecg_data.patient_id = ?
-        AND patients.organization_code = ?
-        ORDER BY ecg_data.created_at DESC
-        LIMIT 300
-    `;
-
-    db.query(sql, [patient_id, organizationCode], (err, results) => {
-
-        if (err) {
-            console.error("Patient records error:", err);
-            return res.status(500).json({
-                error: err.sqlMessage
-            });
-        }
-
-        console.log(
-            `Found ${results.length} records for ${patient_id}`
-        );
-
-        res.json(results);
-    });
-});
-app.post("/doctor-logout", requireDoctorLogin, (req, res) => {
-
-    req.session.destroy((err) => {
-        if (err) {
-            console.error("Logout error:", err);
-            return res.status(500).json({
-                error: "Logout failed"
-            });
-        }
-        res.json({ message: "Logged out successfully" });
-    });
-});
-app.get("/doctor-me", requireDoctorLogin, (req, res) => {
-
-    res.json({
-        doctor: req.session.doctor
-    });
-
-});
-// app.get('/records', (req, res) => {
-//     let date = req.query.date;
-//     db.query(
-//         'SELECT * FROM ecg_data WHERE DATE(created_at)=? ORDER BY id DESC',
-//         [date],
-//     (err, results) => {
-//         if (err) {
-//                 res.status(500).send(err);
-//                 return;
-//             }
-
-//             res.json(results);
-//         });
-// });

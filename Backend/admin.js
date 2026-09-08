@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const bcrypt = require("bcrypt");
 const db = require("./db");
 
@@ -91,6 +90,12 @@ async function createAdmin() {
                             "Email:",
                             email
                         );
+
+                        // console.log(
+                        //     "Password:",
+                        //     password
+                        // );
+
                         db.end();
                     }
                 );
