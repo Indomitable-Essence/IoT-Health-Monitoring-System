@@ -136,16 +136,15 @@ app.post("/admin-login", async (req, res) => {
             }
 
             res.json({
-                message: "Admin login successful",
+    message: "Admin login successful",
 
-                admin: {
-                    admin_name:
-                        admin.admin_name,
+    access_token: data.session.access_token,
 
-                    email:
-                        admin.email
-                }
-            });
+    admin: {
+        admin_name: admin.admin_name,
+        email: admin.email
+    }
+});
         });
 
     } catch (error) {
