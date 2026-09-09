@@ -25,15 +25,17 @@ app.use(cors({
 
 app.use(express.json());
 
+app.set('trust proxy', 1);
+
 app.use(session({
-    secret: 'my-secret-key',
+    secret: process.env.SESSION_SECRET || 'my-secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false,  // Set to true if using HTTPS
+        secure: true,
         httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 80,
-        sameSite: 'lax'
+        sameSite: 'none',
+        maxAge: 1000 * 60 * 60 * 80
     }
 }));
 
