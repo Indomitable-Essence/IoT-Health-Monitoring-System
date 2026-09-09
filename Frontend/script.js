@@ -1,5 +1,8 @@
 let mode = 'live';
 let selectedHistoryDate = null;
+
+const API_BASE_URL = "https://iot-health-monitoring-system.onrender.com";
+
 console.log("JavaScript connected!");
 
 // function updateDateTime() {
@@ -180,7 +183,7 @@ client.on('message', (topic, message) => {
                 data.samples.forEach(sample => {
 
                     ecgLabels.push("");
-                    ecgData.push(Number(sample));``
+                    ecgData.push(Number(sample));
 
                 });
 
@@ -729,7 +732,7 @@ document.getElementById("dateSelected").addEventListener("change", function () {
     
 const patientId = document.getElementById("patientId").value;
 
-fetch( `http://localhost:3000/records?patient=${patientId}&date=${selectedHistoryDate}`,{
+fetch( `${API_BASE_URL}/records?patient=${patientId}&date=${selectedHistoryDate}`,{
     credentials: "include"
 })       
        .then(res => res.json())
@@ -803,7 +806,7 @@ async function loadPatient(patientId){
     try{
 
         const response = await fetch(
-            `http://localhost:3000/patients?patient_id=${patientId}`,{
+            `${API_BASE_URL}/patients?patient_id=${patientId}`,{
     credentials: "include"
 }
         );
@@ -852,7 +855,7 @@ function submitButton(){
     blood_pressure
 });
 
-    fetch("http://localhost:3000/patients", {
+    fetch(`${API_BASE_URL}/patients`, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -897,7 +900,7 @@ document.getElementById("startMonitoringButton").addEventListener("click", () =>
         alert("Please enter a patient ID");
         return;
     }
-    fetch("http://localhost:3000/set-patient", {
+    fetch(`${API_BASE_URL}/set-patient`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -917,7 +920,7 @@ async function loadDoctorInfo() {
     try {
 
         const response = await fetch(
-            "http://localhost:3000/doctor-me",
+            `${API_BASE_URL}/doctor-me`,
             {
                 credentials: "include"
             }
