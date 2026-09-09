@@ -1,3 +1,4 @@
+const API_BASE_URL = "https://iot-health-monitoring-system.onrender.com";
 const loginSection =
     document.getElementById("loginSection");
 
@@ -65,7 +66,7 @@ document
         try {
 
             const response = await fetch(
-                "http://localhost:3000/doctor-login",
+                `${API_BASE_URL}/doctor-login`,
                 {
 
                     method: "POST",
@@ -185,7 +186,7 @@ console.log("Password:", password.length>0);
         try {
 
             const response = await fetch(
-                "http://localhost:3000/doctor-register",
+                `${API_BASE_URL}/doctor-register`,
                 {
 
                     method: "POST",
