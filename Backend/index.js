@@ -242,10 +242,37 @@ async function requireAdminAuth(req, res, next) {
     }
 }
 
+app.get(
+    "/admin/organizations",
+    requireAdminAuth,
+    async (req, res) => {
+        try {
+            const result = await db.query(`
+                SELECT
+                    id,
+                    organization_name,
+                    organization_code,
+                    created_at
+                FROM organizations
+                ORDER BY created_at DESC
+            `);
 
-// =====================================================
-// ORGANIZATION CODE GENERATOR
-// =====================================================
+            res.json({
+                organizations: result.rows
+            });
+
+        } catch (error) {
+            console.error(
+                "Organization retrieval error:",
+                error
+            );
+
+            res.status(500).json({
+                error: "Could not load organizations"
+            });
+        }
+    }
+);
 
 function generateOrganizationCode(organizationName) {
 

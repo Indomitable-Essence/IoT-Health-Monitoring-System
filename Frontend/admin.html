@@ -1,0 +1,335 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Elaz - Admin Access</title>
+
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+
+        <div class="logo">
+            ELAZ
+        </div>
+
+        <a href="doctor-login.html" class="back-link">
+            <span>←</span>
+            Doctor Login
+        </a>
+
+    </nav>
+
+
+    <main class="admin-container">
+
+        <!-- INTRODUCTION -->
+        <section class="welcome-section">
+
+            <div class="welcome-badge">
+                ADMIN PORTAL
+            </div>
+
+            <h1>
+                Welcome to<br>
+                <span>Elaz Administration</span>
+            </h1>
+
+            <p>
+                Manage healthcare organizations and securely generate
+                organization access codes from one place.
+            </p>
+
+        </section>
+
+
+        <!-- ADMIN ACCESS -->
+        <section class="access-section">
+
+            <div class="section-heading">
+
+                <span class="section-label">
+                    ADMIN ACCESS
+                </span>
+
+                <h2 id="accessTitle">
+                    Request administrative access
+                </h2>
+
+                <p id="accessDescription">
+                    Sign in with your administrator credentials to continue.
+                </p>
+
+            </div>
+
+
+            <!-- LOGIN AREA -->
+            <div id="loginArea" class="access-panel">
+
+                <form id="adminLoginForm">
+
+                    <div class="input-group">
+
+                        <label for="adminLoginEmail">
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            id="adminLoginEmail"
+                            placeholder="Enter your admin email"
+                            autocomplete="email"
+                            required
+                        >
+
+                    </div>
+
+
+                    <div class="input-group">
+
+                        <label for="adminLoginPassword">
+                            Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="adminLoginPassword"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                    </div>
+
+
+                    <p id="adminLoginMessage" class="message"></p>
+
+
+                    <button
+                        type="submit"
+                        id="loginBtn"
+                        class="primary-btn"
+                    >
+                        Continue to Admin Portal
+                    </button>
+
+                </form>
+
+            </div>
+
+
+            <!-- AUTHENTICATED AREA -->
+            <div
+                id="authenticatedArea"
+                class="authenticated-panel"
+                style="display: none;"
+            >
+
+                <div class="authenticated-icon">
+                    ✓
+                </div>
+
+                <div>
+                    <span class="authenticated-label">
+                        ACCESS GRANTED
+                    </span>
+
+                    <h3 id="adminName">
+                        Administrator
+                    </h3>
+
+                    <p id="adminEmail">
+                        —
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    id="logoutBtn"
+                    class="logout-btn"
+                >
+                    Logout
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- DIVIDER -->
+        <div class="section-divider">
+            <span></span>
+        </div>
+
+
+        <!-- ORGANIZATION MANAGEMENT -->
+        <section class="organization-section">
+
+            <div class="section-heading">
+
+                <span class="section-label">
+                    ORGANIZATION MANAGEMENT
+                </span>
+
+                <h2>
+                    Create a healthcare organization
+                </h2>
+
+                <p>
+                    Enter an organization name and Elaz will generate
+                    a unique organization code for its doctors and users.
+                </p>
+
+            </div>
+
+
+            <div
+                id="organizationPanel"
+                class="organization-panel locked"
+            >
+
+                <div class="lock-message" id="lockMessage">
+
+                    <span class="lock-icon">
+                        🔒
+                    </span>
+
+                    <div>
+                        <strong>Admin access required</strong>
+
+                        <p>
+                            Authenticate above to create an organization.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <form
+                    id="organizationForm"
+                    class="organization-form"
+                >
+
+                    <div class="organization-input-area">
+
+                        <label for="organizationName">
+                            Organization Name
+                        </label>
+
+                        <input
+                            type="text"
+                            id="organizationName"
+                            name="organizationName"
+                            placeholder="e.g. Elaz Medical Centre"
+                            required
+                            disabled
+                        >
+
+                        <p class="input-hint">
+                            Use the official name of the healthcare organization.
+                        </p>
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        id="createOrganizationBtn"
+                        class="create-btn"
+                        disabled
+                    >
+                        Generate Organization Code
+                    </button>
+
+                </form>
+
+
+                <p
+                    id="organizationMessage"
+                    class="message"
+                ></p>
+
+
+                <!-- GENERATED CODE -->
+                <div
+                    id="generatedCodeContainer"
+                    class="generated-code"
+                    style="display: none;"
+                >
+
+                    <div class="code-header">
+
+                        <span class="section-label">
+                            ORGANIZATION CREATED
+                        </span>
+
+                        <p>
+                            Share this code with the organization's
+                            authorized doctors during registration.
+                        </p>
+
+                    </div>
+
+
+                    <div class="code-box">
+
+                        <div class="code-content">
+
+                            <span>
+                                Organization Code
+                            </span>
+
+                            <strong id="generatedOrganizationCode">
+                                —
+                            </strong>
+
+                        </div>
+
+
+                        <button
+                            type="button"
+                            id="copyCodeBtn"
+                            class="copy-btn"
+                        >
+                            Copy Code
+                        </button>
+
+                    </div>
+
+
+                    <p class="code-note">
+                        Keep this code secure. It is used to associate
+                        doctors with this organization.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer class="footer">
+
+        <p>
+            © 2026 Elaz. Healthcare monitoring made simpler.
+        </p>
+
+    </footer>
+
+
+    <script src="admin.js"></script>
+
+</body>
+
+</html>
+```
