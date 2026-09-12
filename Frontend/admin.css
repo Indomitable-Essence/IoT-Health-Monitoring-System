@@ -9,7 +9,6 @@ html {
 body {
     margin: 0;
     min-height: 100vh;
-
     background:
         radial-gradient(
             circle at 50% 0%,
@@ -229,7 +228,7 @@ body {
 
     color: #22C55E;
 
-    font-size: 10px;
+    font-size: 14px;
 
     font-weight: 700;
 
@@ -298,7 +297,7 @@ body {
 
     color: #CBD5E1;
 
-    font-size: 12px;
+    font-size: 14px;
 
     font-weight: 600;
 }
@@ -341,12 +340,6 @@ body {
     box-shadow:
         0 0 0 3px rgba(34, 197, 94, 0.07);
 }
-
-
-/* =========================================================
-   7. BUTTONS
-   ========================================================= */
-
 .primary-btn,
 .create-btn {
     width: 100%;
@@ -354,21 +347,17 @@ body {
     padding: 13px 18px;
 
     border: none;
-
     border-radius: 9px;
-
     background:
         linear-gradient(
             135deg,
-            #22C55E,
-            #14B8A6
+            #14B8A6,#22C55E
         );
 
     color: white;
-
     font-family: Arial, sans-serif;
 
-    font-size: 13px;
+    font-size: 15px;
 
     font-weight: 700;
 
@@ -404,20 +393,13 @@ body {
 
     box-shadow: none;
 }
-
-
-/* =========================================================
-   8. MESSAGES
-   ========================================================= */
-
 .message {
     display: none;
 
     margin: 12px 0;
 
-    font-size: 12px;
+    font-size: 15px;
 }
-
 .message.success {
     display: block;
 
@@ -429,12 +411,6 @@ body {
 
     color: #FCA5A5;
 }
-
-
-/* =========================================================
-   9. AUTHENTICATED STATE
-   ========================================================= */
-
 .authenticated-panel {
     display: flex;
 
@@ -649,10 +625,8 @@ body {
 
 .lock-message p {
     margin: 1px 0 0;
-
-    color: #64748B;
-
-    font-size: 11px;
+ color: #64748B;
+font-size: 13px;
 }
 
 .organization-form {
@@ -676,7 +650,7 @@ body {
 
     color: #64748B;
 
-    font-size: 10px;
+    font-size: 12px;
 }
 
 .create-btn {
