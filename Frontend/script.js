@@ -926,7 +926,7 @@ selectedPatientId = patientId;
         // document.getElementById("humValue").textContent =
         //     latest.env_hum != null
         //         ? `${latest.env_hum}%`
-                : "--%";
+                // : "--%";
 
         // document.getElementById("aqiValue").textContent =
         //     latest.aqi != null
