@@ -1,6 +1,6 @@
 let mode = 'live';
 let selectedHistoryDate = null;
-
+let selectedPatientId = null;
 const API_BASE_URL = "https://iot-health-monitoring-system.onrender.com";
 
 console.log("JavaScript connected!");
@@ -801,18 +801,66 @@ fetch( `${API_BASE_URL}/records?patient=${patientId}&date=${selectedHistoryDate}
 //     });
 
 // };
-async function loadPatient(patientId){
+// async function loadPatient(patientId){
 
-    try{
+//     try{
+
+//         const response = await fetch(
+//             `${API_BASE_URL}/patients?patient_id=${patientId}`,{
+//     credentials: "include"
+// }
+//         );
+
+//         const patient = await response.json();
+//         console.log(patient);
+
+//         document.getElementById("displayPatientID").textContent =
+//             patient.patient_id;
+
+//         document.getElementById("displayPatientName").textContent =
+//             patient.patient_name;
+
+//         document.getElementById("displayPatientAge").textContent =
+//             patient.age;
+
+//         document.getElementById("displayPatientGender").textContent =
+//             patient.gender;
+        
+
+
+//     }
+//     catch(error){
+//         console.log(error);
+//     }
+
+// }
+async function loadPatient(patientId) {
+
+    patientId = patientId.trim();
+
+    if (!patientId) {
+        alert("Please enter a patient ID");
+        return;
+    }
+selectedPatientId = patientId;
+
+    try {
 
         const response = await fetch(
-            `${API_BASE_URL}/patients?patient_id=${patientId}`,{
-    credentials: "include"
-}
+            `${API_BASE_URL}/patients?patient_id=${encodeURIComponent(patientId)}`,
+            {
+                credentials: "include"
+            }
         );
 
         const patient = await response.json();
-        console.log(patient);
+
+        if (!response.ok) {
+            alert(patient.error || patient.message || "Patient not found");
+            return;
+        }
+
+        console.log("Patient loaded:", patient);
 
         document.getElementById("displayPatientID").textContent =
             patient.patient_id;
@@ -825,14 +873,98 @@ async function loadPatient(patientId){
 
         document.getElementById("displayPatientGender").textContent =
             patient.gender;
-        
 
+        await loadLatestPatientValues(patientId);
+
+    } catch (error) {
+
+        console.error("Patient loading error:", error);
 
     }
-    catch(error){
-        console.log(error);
-    }
+}
 
+async function loadLatestPatientValues(patientId) {
+
+    try {
+
+        const response = await fetch(
+            `${API_BASE_URL}/latest-record?patient_id=${encodeURIComponent(patientId)}`,
+            {
+                credentials: "include"
+            }
+        );
+
+        const latest = await response.json();
+
+        if (!response.ok) {
+
+            console.log(
+                "No previous readings for this patient:",
+                latest
+            );
+
+            // No previous data
+            document.getElementById("tempValue").textContent = "--°C";
+            document.getElementById("humValue").textContent = "--%";
+            document.getElementById("aqiValue").textContent = "-- AQI";
+            document.getElementById("spo2Value").textContent = "--%";
+            document.getElementById("bpmValue").textContent = "-- BPM";
+            document.getElementById("body_temp").textContent = "--°C";
+
+            return;
+        }
+
+        console.log("Latest patient record:", latest);
+
+
+        // ==========================================
+        // DISPLAY LATEST VALUES
+        // ==========================================
+
+        document.getElementById("tempValue").textContent =
+            latest.env_temp != null
+                ? `${latest.env_temp}°C`
+                : "--°C";
+
+        document.getElementById("humValue").textContent =
+            latest.env_hum != null
+                ? `${latest.env_hum}%`
+                : "--%";
+
+        document.getElementById("aqiValue").textContent =
+            latest.aqi != null
+                ? `${latest.aqi} AQI`
+                : "-- AQI";
+
+        document.getElementById("spo2Value").textContent =
+            latest.spo2 != null
+                ? `${latest.spo2}%`
+                : "--%";
+
+        document.getElementById("bpmValue").textContent =
+            latest.bpm != null
+                ? `${latest.bpm} BPM`
+                : "-- BPM";
+
+        document.getElementById("body_temp").textContent =
+            latest.body_temp != null
+                ? `${latest.body_temp}°C`
+                : "--°C";
+
+
+        console.log(
+            "Latest values displayed for:",
+            patientId
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load latest patient values:",
+            error
+        );
+
+    }
 }
 
 function submitButton(){
