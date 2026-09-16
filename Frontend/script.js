@@ -883,6 +883,84 @@ selectedPatientId = patientId;
     }
 }
 
+// async function loadLatestPatientValues(patientId) {
+
+//     try {
+
+//         const response = await fetch(
+//             `${API_BASE_URL}/latest-record?patient_id=${encodeURIComponent(patientId)}`,
+//             {
+//                 credentials: "include"
+//             }
+//         );
+
+//         const latest = await response.json();
+
+//         if (!response.ok) {
+
+//             console.log(
+//                 "No previous readings for this patient:",
+                // latest
+            );
+
+        //     // No previous data
+        //     document.getElementById("tempValue").textContent = "--°C";
+        //     document.getElementById("humValue").textContent = "--%";
+        //     document.getElementById("aqiValue").textContent = "-- AQI";
+        //     document.getElementById("spo2Value").textContent = "--%";
+        //     document.getElementById("bpmValue").textContent = "-- BPM";
+        //     document.getElementById("body_temp").textContent = "--°C";
+
+        //     return;
+        // }
+        // console.log("Latest patient record:", latest);
+        // ==========================================
+        // DISPLAY LATEST VALUES
+        // ==========================================
+
+        // document.getElementById("tempValue").textContent =
+        //     latest.env_temp != null
+        //         ? `${latest.env_temp}°C`
+        //         : "--°C";
+
+        // document.getElementById("humValue").textContent =
+        //     latest.env_hum != null
+        //         ? `${latest.env_hum}%`
+                : "--%";
+
+        // document.getElementById("aqiValue").textContent =
+        //     latest.aqi != null
+        //         ? `${latest.aqi} AQI`
+        //         : "-- AQI";
+
+        // document.getElementById("spo2Value").textContent =
+        //     latest.spo2 != null
+        //         ? `${latest.spo2}%`
+        //         : "--%";
+
+        // document.getElementById("bpmValue").textContent =
+        //     latest.bpm != null
+        //         ? `${latest.bpm} BPM`
+        //         : "-- BPM";
+
+        // document.getElementById("body_temp").textContent =
+        //     latest.body_temp != null
+        //         ? `${latest.body_temp}°C`
+//         //         : "--°C";
+//         console.log(
+//             "Latest values displayed for:",
+//             patientId
+//         );
+
+//     } catch (error) {
+
+//         console.error(
+//             "Failed to load latest patient values:",
+//             error
+//         );
+
+//     }
+// }
 async function loadLatestPatientValues(patientId) {
 
     try {
@@ -903,7 +981,6 @@ async function loadLatestPatientValues(patientId) {
                 latest
             );
 
-            // No previous data
             document.getElementById("tempValue").textContent = "--°C";
             document.getElementById("humValue").textContent = "--%";
             document.getElementById("aqiValue").textContent = "-- AQI";
@@ -914,12 +991,7 @@ async function loadLatestPatientValues(patientId) {
             return;
         }
 
-        console.log("Latest patient record:", latest);
-
-
-        // ==========================================
-        // DISPLAY LATEST VALUES
-        // ==========================================
+        console.log("Latest patient values:", latest);
 
         document.getElementById("tempValue").textContent =
             latest.env_temp != null
@@ -951,12 +1023,6 @@ async function loadLatestPatientValues(patientId) {
                 ? `${latest.body_temp}°C`
                 : "--°C";
 
-
-        console.log(
-            "Latest values displayed for:",
-            patientId
-        );
-
     } catch (error) {
 
         console.error(
@@ -966,7 +1032,6 @@ async function loadLatestPatientValues(patientId) {
 
     }
 }
-
 function submitButton(){
     console.log("Submit button clicked!");
     const patient_id = document.getElementById("idInput").value;
