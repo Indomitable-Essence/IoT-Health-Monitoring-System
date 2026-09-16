@@ -1211,6 +1211,74 @@ app.get(
     }
 );
 
+// app.get(
+//     "/latest-record",
+//     requireDoctorLogin,
+//     async (req, res) => {
+
+//         const { patient_id } = req.query;
+
+//         if (!patient_id) {
+//             return res.status(400).json({
+//                 error: "patient_id is required"
+//             });
+//         }
+
+//         const organizationCode =
+//             req.session.doctor.organization_code;
+
+//         const sql = `
+//             SELECT
+//                 ecg_data.patient_id,
+//                 ecg_data.ecg_value,
+//                 ecg_data.spo2,
+//                 ecg_data.body_temp,
+//                 ecg_data.env_temp,
+//                 ecg_data.env_hum,
+//                 ecg_data.bpm,
+//                 ecg_data.aqi,
+//                 ecg_data.created_at
+//             FROM ecg_data
+//             INNER JOIN patients
+//                 ON ecg_data.patient_id =
+//                    patients.patient_id
+//             WHERE ecg_data.patient_id = $1
+//             AND patients.organization_code = $2
+//             ORDER BY ecg_data.created_at DESC
+//             LIMIT 1
+//         `;
+
+//         try {
+
+//             const result = await db.query(
+//                 sql,
+//                 [
+//                     patient_id,
+//                     organizationCode
+//                 ]
+//             );
+
+//             if (result.rows.length === 0) {
+//                 return res.status(404).json({
+//                     error: "No recorded data for this patient"
+//                 });
+//             }
+
+//             res.json(result.rows[0]);
+
+//         } catch (error) {
+
+//             console.error(
+//                 "Latest patient record error:",
+//                 error
+//             );
+
+//             res.status(500).json({
+//                 error: "Database error"
+//             });
+//         }
+//     }
+// );
 app.get(
     "/latest-record",
     requireDoctorLogin,
@@ -1227,25 +1295,102 @@ app.get(
         const organizationCode =
             req.session.doctor.organization_code;
 
+        /*
+         * Get the most recently recorded value for EACH sensor.
+         *
+         * This is different from simply selecting the newest row.
+         * A newer row may contain NULL for a sensor that was not
+         * connected/publishing at that moment.
+         */
+
         const sql = `
             SELECT
-                ecg_data.patient_id,
-                ecg_data.ecg_value,
-                ecg_data.spo2,
-                ecg_data.body_temp,
-                ecg_data.env_temp,
-                ecg_data.env_hum,
-                ecg_data.bpm,
-                ecg_data.aqi,
-                ecg_data.created_at
-            FROM ecg_data
-            INNER JOIN patients
-                ON ecg_data.patient_id =
-                   patients.patient_id
-            WHERE ecg_data.patient_id = $1
-            AND patients.organization_code = $2
-            ORDER BY ecg_data.created_at DESC
-            LIMIT 1
+
+                $1 AS patient_id,
+
+                /* Latest environment temperature */
+                (
+                    SELECT env_temp
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND env_temp IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS env_temp,
+
+                /* Latest environment humidity */
+                (
+                    SELECT env_hum
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND env_hum IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS env_hum,
+
+                /* Latest AQI */
+                (
+                    SELECT aqi
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND aqi IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS aqi,
+
+                /* Latest SpO2 */
+                (
+                    SELECT spo2
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND spo2 IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS spo2,
+
+                /* Latest BPM */
+                (
+                    SELECT bpm
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND bpm IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS bpm,
+
+                /* Latest body temperature */
+                (
+                    SELECT body_temp
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND body_temp IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS body_temp,
+
+                /* Latest ECG value */
+                (
+                    SELECT ecg_value
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    AND ecg_value IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS ecg_value,
+
+                /* Time of the most recent record */
+                (
+                    SELECT created_at
+                    FROM ecg_data
+                    WHERE patient_id = $1
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS created_at
+
+            FROM patients
+
+            WHERE patient_id = $1
+            AND organization_code = $2
         `;
 
         try {
@@ -1259,12 +1404,43 @@ app.get(
             );
 
             if (result.rows.length === 0) {
+
+                return res.status(404).json({
+                    error: "Patient not found"
+                });
+
+            }
+
+            const latest = result.rows[0];
+
+            console.log(
+                "LATEST PATIENT VALUES:",
+                latest
+            );
+
+            /*
+             * If the patient exists but has NEVER had a reading,
+             * all sensor values will be NULL.
+             */
+
+            const hasReading =
+                latest.env_temp !== null ||
+                latest.env_hum !== null ||
+                latest.aqi !== null ||
+                latest.spo2 !== null ||
+                latest.bpm !== null ||
+                latest.body_temp !== null ||
+                latest.ecg_value !== null;
+
+            if (!hasReading) {
+
                 return res.status(404).json({
                     error: "No recorded data for this patient"
                 });
+
             }
 
-            res.json(result.rows[0]);
+            res.json(latest);
 
         } catch (error) {
 
@@ -1276,6 +1452,7 @@ app.get(
             res.status(500).json({
                 error: "Database error"
             });
+
         }
     }
 );
