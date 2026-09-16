@@ -901,7 +901,7 @@ selectedPatientId = patientId;
 //             console.log(
 //                 "No previous readings for this patient:",
                 // latest
-            );
+            // );
 
         //     // No previous data
         //     document.getElementById("tempValue").textContent = "--°C";
