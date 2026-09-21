@@ -504,6 +504,7 @@ form button:active {
     border-radius: 0 0 15px 0;
 }
 .section{
+    text-decoration:none;
     cursor:pointer;
     font-size:1.1rem;
     font-weight:200;
