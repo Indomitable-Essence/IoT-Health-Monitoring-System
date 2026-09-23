@@ -496,7 +496,7 @@ body {
 .patient-search input{
     flex: 1;
     padding: 14px 18px;
-    min-wdth:0;
+    min-width:0;
     width:100%;
     border: none;
     outline: none;
