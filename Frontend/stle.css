@@ -426,7 +426,8 @@ body {
     justify-content: center;
     align-items:right; ;
     display: flex;
-    border: 2px solid rgba(5, 117, 244, 0.906);
+    border:3px solid var(--accent);
+    /* border: 2px solid rgba(5, 117, 244, 0.906); */
     background:#1E293B;
     border-radius:18px;
     padding:12px;
